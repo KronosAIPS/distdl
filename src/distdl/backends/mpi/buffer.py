@@ -1,4 +1,6 @@
+import cupy as cp
 import numpy as np
+import torch
 
 
 class MPIExpandableBuffer:
@@ -30,7 +32,10 @@ class MPIExpandableBuffer:
         Dictionary mapping shapes to contiguous numpy array views
     """
 
-    def __init__(self, dtype, initial_capacity=0):
+    def __init__(self, dtype, initial_capacity=0, device=torch.device('cpu')):
+        
+        # Set buffer allocation backend
+        self.xp = np if device == torch.device('cpu') else cp
 
         # Data type of this buffer
         self.dtype = dtype
@@ -39,7 +44,7 @@ class MPIExpandableBuffer:
         self.capacity = initial_capacity
 
         # The actual storage buffer
-        self.raw_buffer = np.empty(self.capacity, dtype=dtype)
+        self.raw_buffer = self.xp.empty(self.capacity, dtype=dtype)
 
         # Map between array shapes and numpy views of contiguous chunks of the
         # raw buffer
@@ -64,10 +69,10 @@ class MPIExpandableBuffer:
             return
 
         # Otherwise, create a new buffer.
-        new_buffer = np.empty(new_capacity, dtype=self.dtype)
+        new_buffer = self.xp.empty(int(new_capacity), dtype=self.dtype)
 
         # And copy the contents of the old buffer into the new one.
-        np.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
+        self.xp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity
@@ -76,7 +81,7 @@ class MPIExpandableBuffer:
         # Loop over all existing views and recreate them in the new buffer.
         new_views = dict()
         for view_shape, view in self.views.items():
-            view_volume = np.prod(view_shape)
+            view_volume = self.xp.prod(view_shape)
             new_views[view_shape] = self.raw_buffer[:view_volume].reshape(view_shape)
 
         self.views = new_views
