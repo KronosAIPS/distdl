@@ -1,7 +1,8 @@
 from distdl.utilities.dtype import torch_to_numpy_dtype_dict
+import torch
 
 
-def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_overlaps, dtype):
+def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_overlaps, dtype, device=torch.device('cpu')):
     r"""Allocator for data movement buffers.
 
     Parameters
@@ -28,7 +29,7 @@ def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_ove
         if sl is not None and partner != "self":
             count += 1
 
-    buffers = buffer_manager.request_buffers(count, dtype=numpy_dtype)
+    buffers = buffer_manager.request_buffers(count, dtype=numpy_dtype, device=device)
 
     i = 0
 

@@ -279,7 +279,8 @@ class Repartition(Module):
         buffs = self.allocate_repartition_buffers(self.buffer_manager,
                                                   self.P_x_to_y_overlaps,
                                                   self.P_y_to_x_overlaps,
-                                                  self.global_input_tensor_structure.dtype)
+                                                  self.global_input_tensor_structure.dtype,
+                                                  device=input[0].device)
         self.P_x_to_y_buffers = buffs[0]
         self.P_y_to_x_buffers = buffs[1]
 

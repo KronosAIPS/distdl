@@ -1,5 +1,6 @@
 __all__ = ["RepartitionFunction"]
 
+import cupy as cp
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -108,6 +109,16 @@ class RepartitionFunction(torch.autograd.Function):
 
         device = input.device
         ctx.device = device
+        
+        if device == torch.device('cpu'):
+            xp = np
+            is_cuda_aware = False
+        else:
+            xp = cp
+            is_cuda_aware = True
+
+        ctx.xp = xp
+        ctx.is_cuda_aware = is_cuda_aware
 
         input_requires_grad = False
 
@@ -159,7 +170,7 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
+                    xp.copyto(xfer_buff, xp.asarray(input.detach()[sl].contiguous()))
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=111)
                     requests.append(req)
                 else:
@@ -171,7 +182,7 @@ class RepartitionFunction(torch.autograd.Function):
         # allocations.
         if P_y.active:
             numpy_dtype = torch_to_numpy_dtype_dict[x_global_structure.dtype]
-            output = np.zeros(y_local_structure.shape, dtype=numpy_dtype)
+            output = xp.zeros(y_local_structure.shape, dtype=numpy_dtype)
 
         # Handle the self-copy
         if P_x.active and P_y.active:
@@ -180,7 +191,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if x2ypartner == "self":
                     for (ysl, ysh, y2xpartner) in P_y_to_x_overlaps:
                         if y2xpartner == "self":
-                            np.copyto(output[ysl], input.detach()[xsl].cpu().numpy())
+                            xp.copyto(output[ysl], xp.asarray(input.detach()[xsl].contiguous()))
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -200,9 +211,11 @@ class RepartitionFunction(torch.autograd.Function):
                 buff = P_y_to_x_buffers[index]
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    np.copyto(output[sl], xfer_buff)
+                    xp.copyto(output[sl], xfer_buff)
 
             completed_count += 1
+
+        if is_cuda_aware: xp.cuda.get_current_stream().synchronize()
 
         if P_y.active:
             output = torch.tensor(output,
@@ -262,6 +275,8 @@ class RepartitionFunction(torch.autograd.Function):
         input_requires_grad = ctx.input_requires_grad
 
         device = ctx.device
+        xp = ctx.xp
+        is_cuda_aware = ctx.is_cuda_aware
 
         assert grad_output.device == device
 
@@ -297,7 +312,7 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    np.copyto(xfer_buff, grad_output.detach()[sl].cpu().numpy())
+                    xp.copyto(xfer_buff, xp.asarray(grad_output.detach()[sl].contiguous()))
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=113)
                     requests.append(req)
                 else:
@@ -307,7 +322,7 @@ class RepartitionFunction(torch.autograd.Function):
 
         if P_x.active:
             numpy_dtype = torch_to_numpy_dtype_dict[x_global_structure.dtype]
-            grad_input = np.zeros(x_local_structure.shape, dtype=numpy_dtype)
+            grad_input = xp.zeros(x_local_structure.shape, dtype=numpy_dtype)
 
         # Handle the self-copy
         if P_y.active and P_x.active:
@@ -316,7 +331,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if y2xpartner == "self":
                     for (xsl, xsh, x2ypartner) in P_x_to_y_overlaps:
                         if x2ypartner == "self":
-                            np.copyto(grad_input[xsl], grad_output.detach()[ysl].cpu().numpy())
+                            xp.copyto(grad_input[xsl], xp.asarray(grad_output.detach()[ysl].contiguous()))
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -338,9 +353,11 @@ class RepartitionFunction(torch.autograd.Function):
                     xfer_buff = buff.get_view(sh)
                     # This would normally be an add into the grad_input tensor
                     # but we just created it, so a copy is sufficient.
-                    np.copyto(grad_input[sl], xfer_buff)
+                    xp.copyto(grad_input[sl], xfer_buff)
 
             completed_count += 1
+
+        if is_cuda_aware: xp.cuda.get_current_stream().synchronize()
 
         if P_x.active:
             grad_input = torch.tensor(grad_input,
