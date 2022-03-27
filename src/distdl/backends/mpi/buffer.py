@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import cupy as cp
 import numpy as np
 import torch
@@ -159,9 +161,9 @@ class MPIBufferManager:
 
     def __init__(self):
 
-        self.buffers_map = dict()
+        self.buffers_map = defaultdict(dict)
 
-    def request_buffers(self, n_buffers, dtype, **kwargs):
+    def request_buffers(self, n_buffers, dtype, device=torch.device('cpu'), **kwargs):
         r"""Acquire a list of buffers of a specific dtype, creating them if
         required.
 
@@ -178,15 +180,16 @@ class MPIBufferManager:
 
         """
 
-        if dtype not in self.buffers_map:
-            self.buffers_map[dtype] = list()
+
+        if dtype not in self.buffers_map[device]:
+            self.buffers_map[device][dtype] = list()
 
         # Extract a list of all existing buffers with matching dtype
-        dtype_buffers = self.buffers_map[dtype]
+        dtype_buffers = self.buffers_map[device][dtype]
 
         # If there are not enough, create more buffers with that dtype
         for i in range(n_buffers - len(dtype_buffers)):
-            dtype_buffers.append(MPIExpandableBuffer(dtype, **kwargs))
+            dtype_buffers.append(MPIExpandableBuffer(dtype, device=device, **kwargs))
 
         # Return the requested number of buffers
         return dtype_buffers[:n_buffers]
