@@ -198,6 +198,9 @@ class DistributedBatchNorm(Module):
         if self.global_input_shape[1] != self.num_features:
             raise ValueError('num_features does not match global input shape.')
 
+        device = input.device
+        input = input.cpu()
+
         # Because of the correctness of slicing, we may assume that:
         #   input.shape[1] == self.local_num_features
 
@@ -230,4 +233,4 @@ class DistributedBatchNorm(Module):
             beta = self.bc_affine(self.beta)
             x = gamma * x + beta
 
-        return x
+        return x.to(device)
