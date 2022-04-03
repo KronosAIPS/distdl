@@ -198,24 +198,31 @@ class RepartitionFunction(torch.autograd.Function):
                     break
 
         # Unpack the received data as it arrives
-        completed_count = 0
-        while(completed_count < len(requests)):
-            status = MPI.Status()
-            index = MPI.Request.Waitany(requests, status)
+        #completed_count = 0
+        #while(completed_count < len(requests)):
+        #    status = MPI.Status()
+        #    index = MPI.Request.Waitany(requests, status)
 
-            # In MPI, we don't get the index out if the request is an
-            # instance of MPI.REQUEST_NULL, instead MPI.UNDEFINED is returned.
-            if P_y.active and index < recv_count and index != MPI.UNDEFINED:
-                # Unpack my output parts
-                sl, sh, partner = P_y_to_x_overlaps[index]
-                buff = P_y_to_x_buffers[index]
-                if buff is not None:
-                    xfer_buff = buff.get_view(sh)
-                    xp.copyto(output[sl], xfer_buff)
+        #    # In MPI, we don't get the index out if the request is an
+        #    # instance of MPI.REQUEST_NULL, instead MPI.UNDEFINED is returned.
+        #    if P_y.active and index < recv_count and index != MPI.UNDEFINED:
+        #        # Unpack my output parts
+        #        sl, sh, partner = P_y_to_x_overlaps[index]
+        #        buff = P_y_to_x_buffers[index]
+        #        if buff is not None:
+        #            xfer_buff = buff.get_view(sh)
+        #            xp.copyto(output[sl], xfer_buff)
 
             completed_count += 1
 
         if is_cuda_aware: xp.cuda.get_current_stream().synchronize()
+        MPI.Request.Waitall(requests)
+        
+        if P_x.active:
+            for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
+                if buff is not None:
+                    xfer_buff = buff.get_view(sh)
+                    xp.copyto(grad_input[sl], xfer_buff)
 
         if P_y.active:
             output = torch.tensor(output,
@@ -338,26 +345,33 @@ class RepartitionFunction(torch.autograd.Function):
                     break
 
         # Unpack the received data as it arrives
-        completed_count = 0
-        while(completed_count < len(requests)):
-            status = MPI.Status()
-            index = MPI.Request.Waitany(requests, status)
+        #completed_count = 0
+        #while(completed_count < len(requests)):
+        #    status = MPI.Status()
+        #    index = MPI.Request.Waitany(requests, status)
 
-            # In MPI, we don't get the index out if the request is an
-            # instance of MPI.REQUEST_NULL, instead MPI.UNDEFINED is returned.
-            if P_x.active and index < recv_count and index != MPI.UNDEFINED:
-                # Unpack my output parts
-                sl, sh, partner = P_x_to_y_overlaps[index]
-                buff = P_x_to_y_buffers[index]
-                if buff is not None:
-                    xfer_buff = buff.get_view(sh)
-                    # This would normally be an add into the grad_input tensor
-                    # but we just created it, so a copy is sufficient.
-                    xp.copyto(grad_input[sl], xfer_buff)
+        #    # In MPI, we don't get the index out if the request is an
+        #    # instance of MPI.REQUEST_NULL, instead MPI.UNDEFINED is returned.
+        #    if P_x.active and index < recv_count and index != MPI.UNDEFINED:
+        #        # Unpack my output parts
+        #        sl, sh, partner = P_x_to_y_overlaps[index]
+        #        buff = P_x_to_y_buffers[index]
+        #        if buff is not None:
+        #            xfer_buff = buff.get_view(sh)
+        #            # This would normally be an add into the grad_input tensor
+        #            # but we just created it, so a copy is sufficient.
+        #            xp.copyto(grad_input[sl], xfer_buff)
 
-            completed_count += 1
+        #    completed_count += 1
 
         if is_cuda_aware: xp.cuda.get_current_stream().synchronize()
+        MPI.Request.Waitall(requests)
+        
+        if P_x.active:
+            for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
+                if buff is not None:
+                    xfer_buff = buff.get_view(sh)
+                    xp.copyto(grad_input[sl], xfer_buff)
 
         if P_x.active:
             grad_input = torch.tensor(grad_input,
