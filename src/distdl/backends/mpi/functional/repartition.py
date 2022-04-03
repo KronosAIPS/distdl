@@ -218,7 +218,7 @@ class RepartitionFunction(torch.autograd.Function):
         if is_cuda_aware: xp.cuda.get_current_stream().synchronize()
         MPI.Request.Waitall(requests)
         
-        if P_x.active:
+        if P_y.active:
             for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
