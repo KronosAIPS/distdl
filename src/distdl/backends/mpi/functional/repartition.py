@@ -220,7 +220,7 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    xp.copyto(grad_input[sl], xfer_buff)
+                    xp.copyto(output[sl], xfer_buff)
 
         if P_y.active:
             output = torch.tensor(output,
