@@ -213,8 +213,6 @@ class RepartitionFunction(torch.autograd.Function):
         #            xfer_buff = buff.get_view(sh)
         #            xp.copyto(output[sl], xfer_buff)
 
-            completed_count += 1
-
         if is_cuda_aware: xp.cuda.get_current_stream().synchronize()
         MPI.Request.Waitall(requests)
         
@@ -361,8 +359,6 @@ class RepartitionFunction(torch.autograd.Function):
         #            # This would normally be an add into the grad_input tensor
         #            # but we just created it, so a copy is sufficient.
         #            xp.copyto(grad_input[sl], xfer_buff)
-
-        #    completed_count += 1
 
         if is_cuda_aware: xp.cuda.get_current_stream().synchronize()
         MPI.Request.Waitall(requests)
