@@ -1,6 +1,13 @@
 from collections import defaultdict
 
-import cupy as cp
+cp = None
+try:
+    import cupy
+    cp = cupy
+except:
+    print('Could not import cupy. If you wish to use CUDA-aware MPI, \
+ensure that it is installed!')
+
 import numpy as np
 import torch
 
@@ -37,7 +44,7 @@ class MPIExpandableBuffer:
     def __init__(self, dtype, initial_capacity=0, device=torch.device('cpu')):
         
         # Set buffer allocation backend
-        self.xp = np if device == torch.device('cpu') else cp
+        self.xp = np if device == torch.device('cpu') or cp == None else cp
 
         # Data type of this buffer
         self.dtype = dtype

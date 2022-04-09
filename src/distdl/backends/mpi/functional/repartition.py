@@ -1,6 +1,12 @@
 __all__ = ["RepartitionFunction"]
 
-import cupy as cp
+cp = None
+try:
+    import cupy
+    cp = cupy
+except:
+    print('Could not import cupy. If you wish to use CUDA-aware MPI, \
+ensure that it is installed!')
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -110,7 +116,7 @@ class RepartitionFunction(torch.autograd.Function):
         device = input.device
         ctx.device = device
         
-        if device == torch.device('cpu'):
+        if device == torch.device('cpu') or cp == None:
             xp = np
             is_cuda_aware = False
         else:
