@@ -117,7 +117,7 @@ with ctx:
         y_local_shape = slicing.compute_subshape(P_y.shape,
                                                  P_y.index,
                                                  x_global_shape)
-        dy = torch.zeros(*y_local_shape, device=device)
+        dy = torch.zeros(*y_local_shape, device=device) + P_y.rank + 1
     print(f"rank {P_world.rank}; index {P_y.index}; dy = {dy}")
 
     # Apply the adjoint of the layer.
