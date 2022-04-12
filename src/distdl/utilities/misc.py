@@ -1,4 +1,5 @@
 from torch.autograd.function import _ContextMethodMixin
+import itertools
 
 
 class Bunch(dict):
@@ -18,3 +19,7 @@ class Bunch(dict):
 class DummyContext(Bunch, _ContextMethodMixin):
 
     pass
+
+def shifted_iterator(iterable, n):
+    shift = n % len(iterable)
+    return itertools.chain(iterable[shift:], iterable[:shift])

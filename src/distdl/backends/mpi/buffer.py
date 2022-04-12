@@ -1,5 +1,12 @@
 import numpy as np
+import os
+import torch
 
+from collections import defaultdict
+
+cuda_aware = 'CUDA_AWARE' in os.environ
+if cuda_aware:
+    import cupy as cp
 
 class MPIExpandableBuffer:
     r"""NumPy (mpi4py compatible) implementation of expandable buffers.
@@ -30,16 +37,22 @@ class MPIExpandableBuffer:
         Dictionary mapping shapes to contiguous numpy array views
     """
 
-    def __init__(self, dtype, initial_capacity=0):
+    def __init__(self, dtype, device=torch.device('cpu'), initial_capacity=0):
 
         # Data type of this buffer
         self.dtype = dtype
+
+        # Device of this buffer
+        self.device = device
+
+        # Array library of this buffer
+        self.xp = np if device == torch.device('cpu') or not cuda_aware else cp
 
         # Current capacity
         self.capacity = initial_capacity
 
         # The actual storage buffer
-        self.raw_buffer = np.empty(self.capacity, dtype=dtype)
+        self.raw_buffer = self.xp.empty(self.capacity, dtype=dtype)
 
         # Map between array shapes and numpy views of contiguous chunks of the
         # raw buffer
@@ -64,10 +77,10 @@ class MPIExpandableBuffer:
             return
 
         # Otherwise, create a new buffer.
-        new_buffer = np.empty(new_capacity, dtype=self.dtype)
+        new_buffer = self.xp.empty(int(new_capacity), dtype=self.dtype)
 
         # And copy the contents of the old buffer into the new one.
-        np.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
+        self.xp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity
@@ -156,7 +169,7 @@ class MPIBufferManager:
 
         self.buffers_map = dict()
 
-    def request_buffers(self, n_buffers, dtype, **kwargs):
+    def request_buffers(self, n_buffers, dtype, device=torch.device('cpu'), **kwargs):
         r"""Acquire a list of buffers of a specific dtype, creating them if
         required.
 
@@ -174,14 +187,14 @@ class MPIBufferManager:
         """
 
         if dtype not in self.buffers_map:
-            self.buffers_map[dtype] = list()
+            self.buffers_map[dtype] = defaultdict(list)
 
         # Extract a list of all existing buffers with matching dtype
-        dtype_buffers = self.buffers_map[dtype]
+        dtype_buffers = self.buffers_map[dtype][device]
 
         # If there are not enough, create more buffers with that dtype
         for i in range(n_buffers - len(dtype_buffers)):
-            dtype_buffers.append(MPIExpandableBuffer(dtype, **kwargs))
+            dtype_buffers.append(MPIExpandableBuffer(dtype, device=device, **kwargs))
 
         # Return the requested number of buffers
         return dtype_buffers[:n_buffers]

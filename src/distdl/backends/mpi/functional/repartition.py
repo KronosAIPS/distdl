@@ -1,12 +1,17 @@
 __all__ = ["RepartitionFunction"]
 
 import numpy as np
+import os
 import torch
 from mpi4py import MPI
 
 from distdl.utilities.dtype import torch_to_numpy_dtype_dict
+from distdl.utilities.misc import shifted_iterator
 from distdl.utilities.torch import zero_volume_tensor
 
+cuda_aware = 'CUDA_AWARE' in os.environ
+if cuda_aware:
+    import cupy as cp
 
 class RepartitionFunction(torch.autograd.Function):
     r"""MPI-based functional implementation of a distributed repartition layer.
@@ -154,16 +159,43 @@ class RepartitionFunction(torch.autograd.Function):
                 recv_count += 1
 
         # If I have data to share, pack and send my input parts
-        send_count = 0
+        #send_count = 0
+        #if P_x.active:
+        #    for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
+        #        if buff is not None:
+        #            xfer_buff = buff.get_view(sh)
+        #            np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
+        #            req = P_union._comm.Isend(xfer_buff, dest=partner, tag=111)
+        #            requests.append(req)
+        #        else:
+        #            # We add this for symmetry, but don't really need it.
+        #            requests.append(MPI.REQUEST_NULL)
+        #        send_count += 1
+
+        # Pack send buffers. Offset order of sends by rank to avoid overloading
+        # any single node with network requests
+        send_pairs = [p for p in zip(P_x_to_y_overlaps, P_x_to_y_buffers)]
         if P_x.active:
-            for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
+            shift = P_x.rank
+            for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
+                    if cuda_aware: cp.copyto(xfer_buff, cp.array(input.detach()[sl]))
+                    else: np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
+
+        # If we are using cuda-aware MPI, synchronize stream before sending
+        if cuda_aware: cp.cuda.get_current_stream().synchronize()
+
+        # Post send requests. Offset order of sends by rank to avoid overloading
+        # any single node with network requests
+        send_count = 0
+        if P_x.active:
+            for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+                if buff is not None:
+                    xfer_buff = buff.get_view(sh)
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=111)
                     requests.append(req)
                 else:
-                    # We add this for symmetry, but don't really need it.
                     requests.append(MPI.REQUEST_NULL)
                 send_count += 1
 
@@ -171,7 +203,8 @@ class RepartitionFunction(torch.autograd.Function):
         # allocations.
         if P_y.active:
             numpy_dtype = torch_to_numpy_dtype_dict[x_global_structure.dtype]
-            output = np.zeros(y_local_structure.shape, dtype=numpy_dtype)
+            if cuda_aware: output = cp.zeros(y_local_structure.shape, dtype=numpy_dtype)
+            else: output = np.zeros(y_local_structure.shape, dtype=numpy_dtype)
 
         # Handle the self-copy
         if P_x.active and P_y.active:
@@ -180,7 +213,8 @@ class RepartitionFunction(torch.autograd.Function):
                 if x2ypartner == "self":
                     for (ysl, ysh, y2xpartner) in P_y_to_x_overlaps:
                         if y2xpartner == "self":
-                            np.copyto(output[ysl], input.detach()[xsl].cpu().numpy())
+                            if cuda_aware: cp.copyto(output[ysl], cp.array(input.detach()[xsl]))
+                            else: np.copyto(output[ysl], input.detach()[xsl].cpu().numpy())
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -200,7 +234,8 @@ class RepartitionFunction(torch.autograd.Function):
                 buff = P_y_to_x_buffers[index]
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    np.copyto(output[sl], xfer_buff)
+                    if cuda_aware: cp.copyto(output[sl], xfer_buff)
+                    else: np.copyto(output[sl], xfer_buff)
 
             completed_count += 1
 
@@ -291,23 +326,51 @@ class RepartitionFunction(torch.autograd.Function):
                     requests.append(MPI.REQUEST_NULL)
                 recv_count += 1
 
-        # Pack and send my input parts
-        send_count = 0
+        ## Pack and send my input parts
+        #send_count = 0
+        #if P_y.active:
+        #    for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
+        #        if buff is not None:
+        #            xfer_buff = buff.get_view(sh)
+        #            np.copyto(xfer_buff, grad_output.detach()[sl].cpu().numpy())
+        #            req = P_union._comm.Isend(xfer_buff, dest=partner, tag=113)
+        #            requests.append(req)
+        #        else:
+        #            # We add this for symmetry, but don't really need it.
+        #            requests.append(MPI.REQUEST_NULL)
+        #        send_count += 1
+        
+        # Pack send buffers. Offset order of sends by rank to avoid overloading
+        # any single node with network requests
+        send_pairs = [p for p in zip(P_y_to_x_overlaps, P_y_to_x_buffers)]
         if P_y.active:
-            for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
+            shift = P_y.rank
+            for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    np.copyto(xfer_buff, grad_output.detach()[sl].cpu().numpy())
+                    if cuda_aware: cp.copyto(xfer_buff, cp.array(grad_output.detach()[sl]))
+                    else: np.copyto(xfer_buff, grad_output.detach()[sl].cpu().numpy())
+
+        # If we are using cuda-aware MPI, synchronize stream before sending
+        if cuda_aware: cp.cuda.get_current_stream().synchronize()
+
+        # Post send requests. Offset order of sends by rank to avoid overloading
+        # any single node with network requests
+        send_count = 0
+        if P_y.active:
+            for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+                if buff is not None:
+                    xfer_buff = buff.get_view(sh)
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=113)
                     requests.append(req)
                 else:
-                    # We add this for symmetry, but don't really need it.
                     requests.append(MPI.REQUEST_NULL)
                 send_count += 1
 
         if P_x.active:
             numpy_dtype = torch_to_numpy_dtype_dict[x_global_structure.dtype]
-            grad_input = np.zeros(x_local_structure.shape, dtype=numpy_dtype)
+            if cuda_aware: grad_input = cp.zeros(x_local_structure.shape, dtype=numpy_dtype)
+            else: grad_input = np.zeros(x_local_structure.shape, dtype=numpy_dtype)
 
         # Handle the self-copy
         if P_y.active and P_x.active:
@@ -316,7 +379,8 @@ class RepartitionFunction(torch.autograd.Function):
                 if y2xpartner == "self":
                     for (xsl, xsh, x2ypartner) in P_x_to_y_overlaps:
                         if x2ypartner == "self":
-                            np.copyto(grad_input[xsl], grad_output.detach()[ysl].cpu().numpy())
+                            if cuda_aware: cp.copyto(grad_input[xsl], cp.array(grad_output.detach()[ysl]))
+                            else: np.copyto(grad_input[xsl], grad_output.detach()[ysl].cpu().numpy())
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -338,7 +402,8 @@ class RepartitionFunction(torch.autograd.Function):
                     xfer_buff = buff.get_view(sh)
                     # This would normally be an add into the grad_input tensor
                     # but we just created it, so a copy is sufficient.
-                    np.copyto(grad_input[sl], xfer_buff)
+                    if cuda_aware: cp.copyto(grad_input[sl], xfer_buff)
+                    else: np.copyto(grad_input[sl], xfer_buff)
 
             completed_count += 1
 
