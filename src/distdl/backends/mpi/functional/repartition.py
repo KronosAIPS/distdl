@@ -9,8 +9,8 @@ from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.misc import shifted_iterator
 from distdl.utilities.torch import zero_volume_tensor
 
-cuda_aware = 'CUDA_AWARE' in os.environ
-if cuda_aware:
+cuda_aware_flag = 'CUDA_AWARE' in os.environ
+if cuda_aware_flag:
     import cupy as cp
 
 class RepartitionFunction(torch.autograd.Function):
@@ -115,6 +115,10 @@ class RepartitionFunction(torch.autograd.Function):
         ctx.device = device
 
         input_requires_grad = False
+
+        # Only use cuda-aware MPI if the flag is set and the input tensor is on
+        # the GPU
+        cuda_aware = cuda_aware_flag and 'cuda' in str(device)
 
         # Share the requires-grad status, so that it is preserved across the
         # repartition
@@ -301,6 +305,10 @@ class RepartitionFunction(torch.autograd.Function):
         assert grad_output.device == device
 
         requests = []
+        
+        # Only use cuda-aware MPI if the flag is set and the input tensor is on
+        # the GPU
+        cuda_aware = cuda_aware_flag and 'cuda' in str(device)
 
         # Default everyone to output None
         if preserve_batch:
