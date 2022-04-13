@@ -181,7 +181,8 @@ class RepartitionFunction(torch.autograd.Function):
         send_pairs = [p for p in zip(P_x_to_y_overlaps, P_x_to_y_buffers)]
         if P_x.active:
             shift = P_x.rank
-            for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+            #for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+            for (sl, sh, partner), buff in send_pairs:
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
                     if cuda_aware: cp.copyto(xfer_buff, cp.array(input.detach()[sl]))
@@ -194,7 +195,8 @@ class RepartitionFunction(torch.autograd.Function):
         # any single node with network requests
         send_count = 0
         if P_x.active:
-            for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+            #for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+            for (sl, sh, partner), buff in send_pairs:
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=111)
@@ -353,7 +355,8 @@ class RepartitionFunction(torch.autograd.Function):
         send_pairs = [p for p in zip(P_y_to_x_overlaps, P_y_to_x_buffers)]
         if P_y.active:
             shift = P_y.rank
-            for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+            #for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+            for (sl, sh, partner), buff in send_pairs:
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
                     if cuda_aware: cp.copyto(xfer_buff, cp.array(grad_output.detach()[sl]))
@@ -366,7 +369,8 @@ class RepartitionFunction(torch.autograd.Function):
         # any single node with network requests
         send_count = 0
         if P_y.active:
-            for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+            #for (sl, sh, partner), buff in shifted_iterator(send_pairs, shift):
+            for (sl, sh, partner), buff in send_pairs:
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=113)
