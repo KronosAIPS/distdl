@@ -51,7 +51,10 @@ default_extension_args_cpu = dict()
 default_extension_args_cpu["extra_compile_args"] = ["-Ofast",
                                                     "-fopenmp"]
 if platform.system() != 'Darwin':
-    default_extension_args_cpu["extra_compile_args"].append("-march=native")
+    if 'ppc' in platform.machine():
+        default_extension_args_cpu["extra_compile_args"].append("-mcpu=native")
+    else:
+        default_extension_args_cpu["extra_compile_args"].append("-march=native")
 # See: https://github.com/suphoff/pytorch_parallel_extension_cpp
 default_extension_args_cpu["extra_compile_args"] += ["-DAT_PARALLEL_OPENMP"]
 default_extension_args_cpu["extra_link_args"] = ["-lgomp"]
