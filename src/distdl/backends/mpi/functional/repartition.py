@@ -188,6 +188,9 @@ class RepartitionFunction(torch.autograd.Function):
                     if cuda_aware: cp.copyto(xfer_buff, cp.array(input.detach()[sl]))
                     else: np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
 
+        # Ensure all ranks have posted receives before we begin to send
+        P_union._comm.Barrier()
+
         # If we are using cuda-aware MPI, synchronize stream before sending
         if cuda_aware: cp.cuda.get_current_stream().synchronize()
 
@@ -361,6 +364,9 @@ class RepartitionFunction(torch.autograd.Function):
                     xfer_buff = buff.get_view(sh)
                     if cuda_aware: cp.copyto(xfer_buff, cp.array(grad_output.detach()[sl]))
                     else: np.copyto(xfer_buff, grad_output.detach()[sl].cpu().numpy())
+
+        # Ensure all ranks have posted receives before we begin to send
+        P_union._comm.Barrier()
 
         # If we are using cuda-aware MPI, synchronize stream before sending
         if cuda_aware: cp.cuda.get_current_stream().synchronize()
