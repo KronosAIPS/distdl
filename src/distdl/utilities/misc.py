@@ -21,5 +21,6 @@ class DummyContext(Bunch, _ContextMethodMixin):
     pass
 
 def shifted_iterator(iterable, n):
+    if len(iterable) == 0: return iterable
     shift = n % len(iterable)
     return itertools.chain(iterable[shift:], iterable[:shift])
