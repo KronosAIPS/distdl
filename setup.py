@@ -98,7 +98,7 @@ has_cuda = check_gpu(0)
 
 setup(
     name='distdl',
-    version='0.6.0',
+    version='0.6.1',
     license='BSD-2-Clause',
     description='A Distributed Deep Learning package for PyTorch.',
     long_description='%s\n%s' % (
@@ -107,7 +107,7 @@ setup(
     ),
     author='Russell J. Hewett',
     author_email='rjh@rjh.io',
-    url='https://github.com/microsoft/distdl',
+    url='https://github.com/distdl/distdl',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],

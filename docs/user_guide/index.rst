@@ -8,7 +8,7 @@ Installation
 
 At the command line::
 
-    git clone git@github.com:microsoft/distdl.git
+    git clone git@github.com:distdl/distdl.git
     cd distdl
     pip3 install -e .
 

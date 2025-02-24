@@ -7,3 +7,4 @@ Authors
 * Thomas J. Grady II
 * Jacob Merizian
 * AmirHossein Sojoodi
+* Microsoft Corporation

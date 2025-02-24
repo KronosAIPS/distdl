@@ -61,3 +61,7 @@ Changelog
 * Added embedding layer
 * Add additional examples for each layer
 * Expand documentation (add new layers and primitives)
+
+0.6.1 (2025-02-25)
+------------------
+* Merge of Microsoft fork back to original project

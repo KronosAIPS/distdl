@@ -89,11 +89,13 @@ DistDL is currently still in private development and needs to be installed from 
 .. code-block:: bash
         
     # Clone repository
-    git clone git@github.com:microsoft/distdl.git
+    git clone git@github.com:distdl/distdl.git
 
     # Install locally
     cd distdl
     pip install -e .
+
+You may need to pass `--no-build-isolation` when installing the package with pip on modern versions of python.
 
 GPU
 ---
@@ -110,15 +112,39 @@ NCCL support must currently be enabled manually by running the following command
 
     python3 -m cupyx.tools.install_library --cuda 11.x --library nccl
 
+MacOS
+-----
+
+MacOS users will need to install the proper toolchain and dependencies using `brew <https://brew.sh/>`_.
+
+.. code-block:: bash
+
+    brew install llvm ninja gcc libomp
+
+Then, export environment variables to use the brew clang toolchain and link to the proper libraries
+
+.. code-block:: bash
+
+    export CC=$(brew --prefix llvm)/bin/clang
+    export CXX=$(brew --prefix llvm)/bin/clang++
+    export LDFLAGS="-L/opt/homebrew/<path to gcc libs>"
+    export LIBRARY_PATH="-L/opt/homebrew/<path to gcc libs>:$LIBRARY_PATH"
+    export DYLD_LIBRARY_PATH="-L/opt/homebrew/<path to gcc libs>:$DYLD_LIBRARY_PATH"
+
+Note, you can find where the relevant gcc libs are stored by running
+
+.. code-block:: bash
+
+    find /opt/homebrew -name "libgomp*" 2>/dev/null
 
 Getting started
 ===============
 
 The examples directory contains a number of examples that demonstrate how to use DistDL.
 
-* Examples for using the communication primitives can be found in `examples/primitives <https://github.com/microsoft/distdl/tree/main/examples/primitives>`_.
+* Examples for using the communication primitives can be found in `examples/primitives <https://github.com/distdl/distdl/tree/main/examples/primitives>`_.
 
-* Examples for using DistDL's distributed modules (linear layers, convolutions, etc.) are located in `examples/basics <https://github.com/microsoft/distdl/tree/main/examples/basics>`_.
+* Examples for using DistDL's distributed modules (linear layers, convolutions, etc.) are located in `examples/basics <https://github.com/distdl/distdl/tree/main/examples/basics>`_.
 
 
 Documentation
@@ -136,6 +162,8 @@ To run the all tests run::
     mpirun -np 20 python -m mpi4py -m pytest --with-mpi -rsa tests
 
 Substitute ``mpiexec`` or ``srun`` as correct for your system.
+
+Note, you may need to use `--hostfile <your hostfile>` or `--oversubscribe` if the system that you are running the tests on has less than 20 available slots.
 
 .. Note, to combine the coverage data from all the tox environments run:
 
